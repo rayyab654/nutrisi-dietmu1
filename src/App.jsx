@@ -70,6 +70,7 @@ const ALL_CATEGORIES = [
   "Vitamin Tulang", "Vitamin Tulang dan Sendi", "Vitamin Zat Besi"
 ];
 
+// Fallback articles EXACTLY matching Rayliziie Central Control Server
 const DEFAULT_PREMIUM_ARTICLES = [
   {
     id: "premium-1",
@@ -77,12 +78,13 @@ const DEFAULT_PREMIUM_ARTICLES = [
     category: "GIZI",
     summary: "Memahami makronutrisi, mikronutrisi, dan membangun pola makan yang sehat untuk hidup lebih baik secara konsisten dan ilmiah.",
     author: "Sinta andini",
-    image_url: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&auto=format&fit=crop&q=80"
+    // Exact salmon, avocado, blueberries & lemon water plate matching Rayliziie Central Control Server
+    image_url: "https://cdn.phototourl.com/free/2026-07-19-57505859-4f61-4f2c-8f6f-ccbff3cea499.jpg"
   },
   {
     id: "premium-2",
     title: "Pentingnya Diet Kaya Serat untuk Kesehatan Mikrobioma Usus",
-    category: "Sains Pencernaan",
+    category: "SAINS PENCERNAAN",
     summary: "Penelitian terbaru membuktikan bahwa konsumsi serat pangan tidak hanya membantu melancarkan sistem pencernaan, melainkan juga menutrisi bakteri usus baik yang berperan dalam memperkuat daya tahan tubuh.",
     author: "Tim Nutrisi",
     image_url: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&auto=format&fit=crop&q=80"
@@ -90,7 +92,7 @@ const DEFAULT_PREMIUM_ARTICLES = [
   {
     id: "premium-3",
     title: "Membongkar Mitos Diet Rendah Karbohidrat: Tinjauan Medis Fakta vs Fiksi",
-    category: "Dietetika Klinis",
+    category: "DIETETIKA KLINIS",
     summary: "Apakah benar karbohidrat adalah penyebab utama kenaikan berat badan? Artikel ini membahas proses metabolisme karbohidrat secara empiris serta menguji efektivitas jangka panjang dari diet ketogenik.",
     author: "Tim Gizi",
     image_url: "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=600&auto=format&fit=crop&q=80"
@@ -98,7 +100,7 @@ const DEFAULT_PREMIUM_ARTICLES = [
   {
     id: "premium-4",
     title: "Bagaimana Dehidrasi Ringan Mempengaruhi Fungsi Kognitif dan Fokus Kerja",
-    category: "Hidrasi Tubuh",
+    category: "HIDRASI TUBUH",
     summary: "Sering merasa lelah dan sulit konsentrasi di siang hari? Uji klinis membuktikan bahwa kekurangan air sebanyak 1% dari total berat tubuh dapat menurunkan daya ingat dan fokus secara signifikan.",
     author: "Ulasan Medis",
     image_url: "https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=600&auto=format&fit=crop&q=80"
@@ -148,51 +150,42 @@ export default function App() {
         'Content-Type': 'application/json'
       };
 
-      let success = false;
       let fetchedData = [];
+      let success = false;
 
-      // Attempt standard Table Query
+      // Primary query for rayliziie_articles table
       try {
-        const res = await fetch(`${supabaseUrl}/rest/v1/articles?select=*`, { headers });
+        const res = await fetch(`${supabaseUrl}/rest/v1/rayliziie_articles?select=*`, { headers });
         if (res.ok) {
           fetchedData = await res.json();
           success = true;
         }
       } catch (e) {
-        console.warn("Retrying fetch with fallback table...");
-      }
-
-      // Try fallback Table if needed
-      if (!success || !Array.isArray(fetchedData) || fetchedData.length === 0) {
-        try {
-          const res = await fetch(`${supabaseUrl}/rest/v1/posts?select=*`, { headers });
-          if (res.ok) {
-            fetchedData = await res.json();
-            success = true;
-          }
-        } catch (e) {
-          console.error("Database connection exception:", e);
-        }
+        console.warn("Direct fetch failed, standby mode engaged.");
       }
 
       if (success && Array.isArray(fetchedData) && fetchedData.length > 0) {
         const mappedData = fetchedData
           .filter(item => item !== null && typeof item === 'object')
-          .map(item => {
-            const rawCover = String(item.image_url || item.cover || item.thumbnail || item.img || '');
-            const isCoverInvalid = !rawCover || rawCover.trim() === '' || rawCover.toLowerCase() === 'cover';
-            
+          .map((item, idx) => {
+            const rawCover = String(item.image_url || item.cover || item.thumbnail || item.img || '').trim();
+            const isArticleOne = idx === 0 || (item.title && item.title.toUpperCase().includes("MENGUASAI"));
+
+            // Match exact CDN image URL from Rayliziie Central Control Server
+            let finalImageUrl = rawCover;
+            if (!rawCover || rawCover === '' || rawCover.toLowerCase() === 'cover' || isArticleOne) {
+              finalImageUrl = "https://cdn.phototourl.com/free/2026-07-19-57505859-4f61-4f2c-8f6f-ccbff3cea499.jpg";
+            }
+
             return {
               id: item.id || Math.random().toString(),
               title: item.title || item.judul || "Artikel Nutrisi Baru",
-              category: item.category || item.kategori || "Gizi & Diet",
+              category: item.category || item.kategori || "GIZI",
               summary: item.summary || item.content || item.isi || item.deskripsi || "Informasi sains gizi tervalidasi.",
-              author: item.author || item.penulis || "Tim Redaksi",
+              author: item.author || item.penulis || "Sinta andini",
               status: item.status || 'published',
               approved: item.approved !== undefined ? item.approved : (item.is_approved !== undefined ? item.is_approved : true),
-              image_url: isCoverInvalid 
-                ? "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&auto=format&fit=crop&q=80"
-                : rawCover
+              image_url: finalImageUrl
             };
           });
 
@@ -209,9 +202,11 @@ export default function App() {
         } else {
           setArticles(DEFAULT_PREMIUM_ARTICLES);
         }
+      } else {
+        setArticles(DEFAULT_PREMIUM_ARTICLES);
       }
     } catch (err) {
-      console.log("Background synchronization is active in standby mode.");
+      console.log("Background synchronization standby mode active.");
       setArticles(DEFAULT_PREMIUM_ARTICLES);
     } finally {
       setLoadingArticles(false);
@@ -233,7 +228,6 @@ export default function App() {
   const getProductsForCategory = (categoryName) => {
     const cleanCat = String(categoryName || 'Obat Maag').trim();
     
-    // Exact match for Obat Maag matching image_049b9b.jpg
     if (cleanCat.toLowerCase() === 'obat maag') {
       return [
         {
@@ -287,7 +281,6 @@ export default function App() {
       ];
     }
 
-    // Exact matches for Strip Pengangkat Komedo from image_04985d.jpg
     if (cleanCat.toLowerCase().includes('komedo') || cleanCat.toLowerCase() === 'strip pengangkat komedo') {
       return [
         {
@@ -325,7 +318,6 @@ export default function App() {
       ];
     }
 
-    // Dynamic generated category mockups
     return [
       {
         id: `${cleanCat}-1`,
@@ -408,7 +400,7 @@ export default function App() {
 
   const calculateGrandTotal = () => {
     const subtotal = cartItems.reduce((acc, item) => acc + (item.product.price * item.quantity), 0);
-    const shippingFee = 15000; // Flat 15.000 IDR shipping
+    const shippingFee = 15000;
     return { subtotal, shippingFee, total: subtotal + shippingFee };
   };
 
@@ -552,7 +544,6 @@ export default function App() {
         {activeTab === 'home' && (
           <div className="animate-fadeIn">
             
-            {/* Hero Section */}
             <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20 grid lg:grid-cols-12 gap-12 items-center">
               <div className="lg:col-span-7 space-y-6">
                 <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-teal-50 text-teal-700 rounded-full text-xs font-bold tracking-wide uppercase">
@@ -597,11 +588,15 @@ export default function App() {
                   </div>
                   <div className="h-44 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 font-medium overflow-hidden relative border border-slate-200">
                     <img 
-                      src="https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=600&auto=format&fit=crop&q=80" 
-                      alt="Healthy scientific diet" 
+                      src="https://cdn.phototourl.com/free/2026-07-19-57505859-4f61-4f2c-8f6f-ccbff3cea499.jpg" 
+                      alt="Salmon avocado lemon water healthy scientific diet" 
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&auto=format&fit=crop&q=80";
+                      }}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent flex items-end p-4">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-4">
                       <p className="text-white font-bold text-sm leading-snug">Metode Diet Mediterania Baru Hasil Uji Klinis</p>
                     </div>
                   </div>
@@ -631,8 +626,6 @@ export default function App() {
             <section className="bg-slate-50 py-20 border-y border-gray-100">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="grid md:grid-cols-3 gap-8 sm:gap-12">
-                  
-                  {/* Pillar 1 */}
                   <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                     <div className="p-3 bg-teal-50 text-teal-600 rounded-xl inline-block mb-6">
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -645,7 +638,6 @@ export default function App() {
                     </p>
                   </div>
 
-                  {/* Pillar 2 */}
                   <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                     <div className="p-3 bg-teal-50 text-teal-600 rounded-xl inline-block mb-6">
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -658,7 +650,6 @@ export default function App() {
                     </p>
                   </div>
 
-                  {/* Pillar 3 */}
                   <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                     <div className="p-3 bg-teal-50 text-teal-600 rounded-xl inline-block mb-6">
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -670,12 +661,10 @@ export default function App() {
                       Sains yang rumit dan membingungkan kami terjemahkan menjadi panduan praktis yang jujur dan mudah dipahami oleh masyarakat awam.
                     </p>
                   </div>
-
                 </div>
               </div>
             </section>
 
-            {/* Pilihan Editor Section */}
             <section className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="mb-12">
                 <span className="text-xs font-extrabold text-teal-600 uppercase tracking-widest block mb-1">ULASAN PILIHAN</span>
@@ -685,25 +674,28 @@ export default function App() {
               <div className="grid lg:grid-cols-12 gap-8 items-center bg-white border border-gray-100 rounded-3xl p-6 sm:p-8 shadow-sm">
                 <div className="lg:col-span-6 h-80 sm:h-96 rounded-2xl overflow-hidden bg-slate-100 relative">
                   <img 
-                    src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&auto=format&fit=crop&q=80" 
-                    alt="Omega-3 Salmon Avocado" 
+                    src="https://cdn.phototourl.com/free/2026-07-19-57505859-4f61-4f2c-8f6f-ccbff3cea499.jpg" 
+                    alt="MENGUASAI NUTRISI DIET Salmon Avocado Plate" 
                     className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&auto=format&fit=crop&q=80";
+                    }}
                   />
                 </div>
                 <div className="lg:col-span-6 space-y-6 lg:pl-4">
                   <span className="text-xs font-bold text-teal-600 bg-teal-50 px-2.5 py-1 rounded-md uppercase tracking-wider inline-block">ULASAN UTAMA</span>
                   <h3 className="text-2xl sm:text-3xl font-black text-[#1C3D5A] leading-snug">
-                    Bukti Ilmiah di Balik Omega-3: Apa yang Sebenarnya Diungkap oleh Riset?
+                    MENGUASAI NUTRISI DIET: Kunci Kesehatan dan Transformasi Tubuh yang Berkelanjutan
                   </h3>
                   <p className="text-[#4A5568] leading-relaxed text-base">
-                    Tinjauan kritis terhadap uji klinis acak terkontrol mengenai asam lemak esensial ini pada kesehatan kardiovaskular dan kognisi otak. Memilah mana fakta empiris murni dan mana klaim pemasaran suplemen.
+                    Memahami makronutrisi, mikronutrisi, dan membangun pola makan yang sehat untuk hidup lebih baik secara konsisten dan ilmiah.
                   </p>
                   <div className="pt-2 flex items-center gap-4">
                     <button 
                       onClick={() => {
-                        const mainArticle = (Array.isArray(articles) && articles.find(a => a.id.includes("premium-1"))) || DEFAULT_PREMIUM_ARTICLES[0];
+                        const mainArticle = (Array.isArray(articles) && articles.find(a => a.id.includes("premium-1") || a.title.includes("MENGUASAI"))) || DEFAULT_PREMIUM_ARTICLES[0];
                         setSelectedArticle(mainArticle);
-                        triggerToast(`Membuka artikel "${mainArticle.title}"...`);
                       }}
                       className="bg-[#1C3D5A] hover:bg-teal-700 text-white font-bold py-2.5 px-6 rounded-full inline-flex items-center gap-1.5 transition-all text-sm"
                     >
@@ -746,9 +738,7 @@ export default function App() {
                     {Array.isArray(articles) && articles.map((article, idx) => (
                       <div 
                         key={article.id || idx} 
-                        onClick={() => {
-                          setSelectedArticle(article);
-                        }}
+                        onClick={() => setSelectedArticle(article)}
                         className="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between group cursor-pointer hover:translate-y-[-4px]"
                       >
                         <div>
@@ -757,6 +747,10 @@ export default function App() {
                               src={article.image_url} 
                               alt={article.title} 
                               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                              onError={(e) => {
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.src = "https://cdn.phototourl.com/free/2026-07-19-57505859-4f61-4f2c-8f6f-ccbff3cea499.jpg";
+                              }}
                             />
                           </div>
                           <div className="p-6 space-y-3">
@@ -791,7 +785,6 @@ export default function App() {
               </div>
             </section>
 
-            {/* Editorial Standards Section */}
             <section id="editorial-standards" className="py-24 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="bg-white border border-slate-100 rounded-3xl p-8 sm:p-12 shadow-sm space-y-10 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-teal-50 rounded-bl-full -z-10"></div>
@@ -805,8 +798,6 @@ export default function App() {
 
                 {/* Editorial Team Cards */}
                 <div className="pt-8 border-t border-slate-100 grid sm:grid-cols-2 gap-8">
-                  
-                  {/* Profile Card 1 */}
                   <div 
                     onClick={() => setSelectedPortfolio('syuhada')}
                     className="p-4 rounded-2xl border border-transparent hover:border-slate-100 hover:bg-slate-50/50 cursor-pointer transition-all flex items-start gap-4 group"
@@ -830,7 +821,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Profile Card 2 */}
                   <div 
                     onClick={() => setSelectedPortfolio('andina')}
                     className="p-4 rounded-2xl border border-transparent hover:border-slate-100 hover:bg-slate-50/50 cursor-pointer transition-all flex items-start gap-4 group"
@@ -853,7 +843,6 @@ export default function App() {
                       </span>
                     </div>
                   </div>
-
                 </div>
 
                 <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-bold text-[#A0AEC0] tracking-wider uppercase">
@@ -865,21 +854,11 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== VIEW 2: TOKO NUTRISI DIETMU ==================== */}
         {activeTab === 'shop' && (
           <div className="animate-fadeIn">
-            
             {shopView === 'main' && (
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
-                
-                {/* Shop Banner */}
                 <div className="bg-[#1C3D5A] rounded-3xl p-8 sm:p-12 text-white relative overflow-hidden shadow-lg shadow-blue-900/10">
-                  <div className="absolute right-0 top-0 bottom-0 w-1/3 opacity-15 pointer-events-none hidden lg:block">
-                    <svg className="w-full h-full text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                    </svg>
-                  </div>
-                  
                   <div className="max-w-3xl space-y-6">
                     <nav className="text-xs text-teal-200 flex items-center gap-2">
                       <span className="hover:underline cursor-pointer" onClick={() => setActiveTab('home')}>Home</span>
@@ -892,16 +871,6 @@ export default function App() {
                       <p className="text-teal-100 font-medium">Solusi Nutrisi Aman, Legal, dan Terpercaya oleh PT Rayliziie Media Digital</p>
                     </div>
 
-                    <div className="inline-flex items-center gap-2 bg-[#2B6CB0]/40 border border-teal-400/30 px-3 py-1.5 rounded-full text-xs font-semibold">
-                      <span>📍</span>
-                      <span>Alamat Pengiriman:</span>
-                      <span className="text-amber-200 cursor-pointer" onClick={() => triggerToast("Penambahan alamat akan tersedia pada pembaruan akun.")}>Tambah Alamat</span>
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                      </svg>
-                    </div>
-
-                    {/* Shop Search Input */}
                     <div className="flex flex-col sm:flex-row gap-3 bg-white p-2 rounded-2xl shadow-xl max-w-2xl">
                       <div className="flex-grow flex items-center px-3 gap-2.5">
                         <svg className="text-slate-400 w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -932,7 +901,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Categories Grid Overview */}
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xl sm:text-2xl font-bold text-[#1C3D5A]">Kategori Pilihan</h3>
@@ -964,29 +932,11 @@ export default function App() {
                     ))}
                   </div>
                 </div>
-
-                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
-                  <div className="p-2 bg-teal-600 rounded-full text-white">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-[#1C3D5A]">Ketersediaan Produk Terkurasi</h4>
-                    <p className="text-sm text-[#4A5568] mt-0.5">
-                      Semua produk herbal, multivitamin, dan suplemen diet yang masuk katalog kami menjalani verifikasi uji lab dan berada di bawah pengawasan tim gizi PT Rayliziie Media Digital.
-                    </p>
-                  </div>
-                </div>
-
               </div>
             )}
 
-            {/* ==================== VIEW 3: ALL CATEGORIES ==================== */}
             {shopView === 'all-categories' && (
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8 animate-fadeIn">
-                
-                {/* Breadcrumbs */}
                 <div className="space-y-4">
                   <nav className="text-xs text-slate-500 flex items-center gap-2">
                     <span className="hover:underline cursor-pointer" onClick={() => { setActiveTab('home'); setShopView('main'); }}>Home</span>
@@ -1007,7 +957,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Category Search Filter */}
                 <div className="bg-slate-50 border border-slate-200/60 p-4 rounded-2xl flex items-center gap-3 max-w-lg shadow-sm">
                   <svg className="text-slate-400 w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -1029,7 +978,6 @@ export default function App() {
                   )}
                 </div>
 
-                {/* Multi-Column Grid Layout */}
                 <div className="bg-white rounded-3xl border border-slate-100 p-8 sm:p-12 shadow-sm">
                   {Array.isArray(filteredAllCategories) && filteredAllCategories.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-3.5">
@@ -1054,15 +1002,11 @@ export default function App() {
                     </div>
                   )}
                 </div>
-
               </div>
             )}
 
-            {/* ==================== VIEW 4: PRODUCTS DIRECTORY ==================== */}
             {shopView === 'products' && (
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8 animate-fadeIn">
-                
-                {/* Breadcrumbs */}
                 <div className="space-y-4">
                   <nav className="text-sm text-teal-600 flex items-center gap-1.5 font-medium">
                     <span className="hover:underline cursor-pointer" onClick={() => { setActiveTab('home'); setShopView('main'); }}>Home</span>
@@ -1072,7 +1016,6 @@ export default function App() {
                     <span className="text-slate-500 font-normal">Cari Obat</span>
                   </nav>
 
-                  {/* Standard Search Bar */}
                   <div className="flex flex-col sm:flex-row gap-3 bg-white p-1 rounded-2xl border border-slate-200 shadow-sm max-w-4xl">
                     <div className="flex-grow flex items-center px-4 gap-3">
                       <svg className="text-slate-400 w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1095,20 +1038,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Sub-text header */}
-                <div className="flex items-center justify-between border-b pb-4 border-slate-100">
-                  <p className="text-slate-600 font-medium">
-                    Menampilkan <span className="font-extrabold text-[#1C3D5A]">{getProductsForCategory(selectedCategory).length} produk</span> terkait <span className="font-bold text-orange-500">"{selectedCategory}"</span>
-                  </p>
-                  <button 
-                    onClick={() => setShopView('all-categories')}
-                    className="text-sm font-bold text-teal-600 hover:underline flex items-center gap-1"
-                  >
-                    ← Pilih Kategori Lain
-                  </button>
-                </div>
-
-                {/* Medicine / Product Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                   {getProductsForCategory(selectedCategory).map((product, idx) => (
                     <div 
@@ -1116,7 +1045,6 @@ export default function App() {
                       className="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between space-y-4"
                     >
                       <div className="space-y-4">
-                        {/* Image wrapper */}
                         <div className="h-44 bg-slate-50 rounded-2xl overflow-hidden flex items-center justify-center relative p-4">
                           <img 
                             src={product.image} 
@@ -1130,7 +1058,6 @@ export default function App() {
                           )}
                         </div>
 
-                        {/* Metadata */}
                         <div className="space-y-1">
                           <h4 className="font-extrabold text-[#2D3748] text-sm sm:text-base leading-tight min-h-[44px] line-clamp-2">
                             {product.name}
@@ -1142,12 +1069,10 @@ export default function App() {
                       </div>
 
                       <div className="space-y-4 pt-2">
-                        {/* Price rendering */}
                         <p className="text-xl font-black text-orange-500">
                           Rp{product.price.toLocaleString('id-ID')}
                         </p>
 
-                        {/* Interactive Buttons */}
                         <div className="grid grid-cols-2 gap-2">
                           <button 
                             onClick={() => {
@@ -1169,13 +1094,11 @@ export default function App() {
                     </div>
                   ))}
                 </div>
-
               </div>
             )}
           </div>
         )}
 
-        {/* ==================== SECTION: NEWSLETTER ==================== */}
         <section id="newsletter-section" className="bg-[#1D324F] py-20 text-white border-t border-[#1a2d48]">
           <div className="max-w-4xl mx-auto px-4 text-center space-y-8">
             <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
@@ -1204,9 +1127,6 @@ export default function App() {
                 Berlangganan
               </button>
             </form>
-            <p className="text-xs text-slate-400">
-              Anda dapat berhenti berlangganan kapan saja. Kami menjaga privasi data Anda.
-            </p>
           </div>
         </section>
 
@@ -1215,9 +1135,7 @@ export default function App() {
       {/* ==================== FOOTER ==================== */}
       <footer className="bg-white border-t border-slate-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 space-y-12">
-          
           <div className="grid md:grid-cols-12 gap-8 items-start">
-            {/* Brand Info */}
             <div className="md:col-span-5 space-y-4">
               <div className="flex items-center gap-2.5">
                 <span className="bg-[#1C3D5A] p-1.5 rounded-lg text-white">
@@ -1232,7 +1150,6 @@ export default function App() {
               </p>
             </div>
 
-            {/* Nav Links Column */}
             <div className="md:col-span-7 grid grid-cols-2 gap-8">
               <div className="space-y-4">
                 <h4 className="text-xs font-extrabold tracking-wider text-[#A0AEC0] uppercase">JELAJAH</h4>
@@ -1251,14 +1168,6 @@ export default function App() {
                       className="hover:text-teal-600 transition-colors text-left"
                     >
                       Tentang Kami
-                    </button>
-                  </li>
-                  <li>
-                    <button 
-                      onClick={() => triggerToast("Formulir Kontak akan segera aktif.")}
-                      className="hover:text-teal-600 transition-colors text-left"
-                    >
-                      Kontak
                     </button>
                   </li>
                 </ul>
@@ -1283,44 +1192,22 @@ export default function App() {
                       Hubungan Media
                     </button>
                   </li>
-                  <li>
-                    <button 
-                      onClick={() => triggerToast("Ketentuan privasi & perlindungan data.")}
-                      className="hover:text-teal-600 transition-colors text-left"
-                    >
-                      Privasi & Hukum
-                    </button>
-                  </li>
                 </ul>
               </div>
             </div>
-          </div>
-
-          {/* Medical Disclaimer */}
-          <div className="bg-slate-50 border border-slate-200/50 rounded-2xl p-6 sm:p-8">
-            <p className="text-xs text-[#718096] leading-relaxed">
-              <strong className="text-[#4A5568] font-bold">Sanggahan Medis (Medical Disclaimer):</strong> Seluruh konten yang diterbitkan pada NutrisiDietMu disediakan murni hanya untuk tujuan informasi dan edukasi umum, serta tidak dapat digunakan sebagai pengganti saran medis profesional, diagnosis, atau perawatan klinis dari dokter. Selalu berkonsultasi dengan dokter spesialis atau ahli gizi terdaftar yang berkualifikasi sebelum melakukan modifikasi radikal pada pola makan atau rasi kesehatan Anda.
-            </p>
           </div>
 
           <div className="pt-8 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#A0AEC0] font-medium">
             <span>
               © 2026 NutrisiDietMu. Hak Cipta Dilindungi Undang-Undang. Lini Media Resmi dari <strong className="text-slate-500 font-bold">PT Rayliziie Media Digital</strong>.
             </span>
-            <span className="text-[#2CB1BC] font-bold italic tracking-wide">
-              Science-based nutrition, honestly reported.
-            </span>
           </div>
-
         </div>
       </footer>
 
-      {/* ==================== PORTFOLIO INTERACTIVE MODAL ==================== */}
       {selectedPortfolio && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
           <div className="relative bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col">
-            
-            {/* Modal Title bar */}
             <div className={`p-8 bg-gradient-to-r ${portfolios[selectedPortfolio].avatarBg} text-white flex items-center justify-between relative`}>
               <div className="space-y-1.5 pr-8">
                 <span className="bg-white/20 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider block w-fit">
@@ -1339,9 +1226,7 @@ export default function App() {
               </button>
             </div>
 
-            {/* Modal Content Scroll */}
             <div className="p-6 sm:p-8 space-y-6 overflow-y-auto max-h-[70vh]">
-              
               <div className="space-y-2">
                 <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 font-sans">
                   Profil Singkat
@@ -1350,51 +1235,8 @@ export default function App() {
                   {portfolios[selectedPortfolio].bio}
                 </p>
               </div>
-
-              <div className="space-y-2.5">
-                <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 font-sans">
-                  Latar Belakang Pendidikan
-                </h4>
-                <ul className="space-y-2">
-                  {Array.isArray(portfolios[selectedPortfolio]?.education) && portfolios[selectedPortfolio].education.map((edu, index) => (
-                    <li key={index} className="flex gap-2.5 items-start text-sm font-semibold text-[#1C3D5A]">
-                      <span className="p-1 bg-teal-50 text-teal-600 rounded-md mt-0.5 shrink-0">
-                        ✓
-                      </span>
-                      <span>{edu}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="space-y-2.5">
-                <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 font-sans">
-                  Fokus Bidang Kajian
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {Array.isArray(portfolios[selectedPortfolio]?.focus) && portfolios[selectedPortfolio].focus.map((foc, index) => (
-                    <span key={index} className="bg-slate-50 border text-slate-700 text-xs font-bold py-1.5 px-3 rounded-xl">
-                      {foc}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-teal-50 border border-teal-100 rounded-2xl p-4 flex gap-3.5 items-start">
-                <div className="p-2 bg-teal-100 text-teal-700 rounded-xl shrink-0 mt-0.5">
-                  🛡️
-                </div>
-                <div className="space-y-0.5">
-                  <h5 className="font-bold text-teal-900 text-sm">Reviewer Kesehatan Terverifikasi</h5>
-                  <p className="text-teal-800 text-xs leading-relaxed">
-                    {portfolios[selectedPortfolio].verifications}
-                  </p>
-                </div>
-              </div>
-
             </div>
 
-            {/* Modal Bottom bar */}
             <div className="p-6 bg-slate-50 border-t flex justify-between items-center gap-4">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 Lini Media Resmi PT Rayliziie Media Digital
@@ -1406,7 +1248,6 @@ export default function App() {
                 Tutup Portofolio
               </button>
             </div>
-
           </div>
         </div>
       )}
@@ -1414,14 +1255,17 @@ export default function App() {
       {/* ==================== ARTICLE DETAIL MODAL ==================== */}
       {selectedArticle && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="relative bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[85vh] animate-scaleUp">
+          <div className="relative bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[85vh]">
             
-            {/* Header Image & Close Button */}
             <div className="relative h-64 sm:h-80 bg-slate-100 shrink-0">
               <img 
                 src={selectedArticle.image_url} 
                 alt={selectedArticle.title} 
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = "https://cdn.phototourl.com/free/2026-07-19-57505859-4f61-4f2c-8f6f-ccbff3cea499.jpg";
+                }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
               <button 
@@ -1431,7 +1275,6 @@ export default function App() {
                 ✕
               </button>
               
-              {/* Category & Title Overlaid */}
               <div className="absolute bottom-6 left-6 right-6 text-white space-y-2">
                 <span className="text-xs font-extrabold text-teal-300 bg-teal-950/60 px-3 py-1 rounded-full uppercase tracking-wider block w-fit border border-teal-500/30">
                   {selectedArticle.category}
@@ -1442,40 +1285,23 @@ export default function App() {
               </div>
             </div>
 
-            {/* Scrollable Article Body Content */}
             <div className="p-6 sm:p-8 space-y-6 overflow-y-auto flex-grow">
-              
-              {/* Reading Metadata */}
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-bold text-slate-400 border-b border-slate-100 pb-4">
                 <span className="flex items-center gap-1.5">
                   👤 Oleh {selectedArticle.author}
                 </span>
                 <span className="flex items-center gap-1.5">
-                  📅 20 Juli 2026
+                  📅 21 Juli 2026
                 </span>
                 <span className="flex items-center gap-1.5">
                   ⏱️ 5 Menit Baca
                 </span>
               </div>
 
-              {/* Parsed paragraphs */}
-              <div className="space-y-4 text-slate-700 leading-relaxed text-sm sm:text-base font-normal">
-                <p className="font-bold text-slate-900 text-base border-l-4 border-teal-500 pl-3 font-sans">
-                  {selectedArticle.summary}
-                </p>
-                
-                <p>
-                  Nutrisi yang seimbang merupakan fondasi utama dari kesehatan jangka panjang dan pencegahan berbagai penyakit metabolik. Pemenuhan zat gizi makro (karbohidrat kompleks, protein serat tinggi, dan lemak esensial sehat) serta zat gizi mikro (vitamin, mineral, dan antioksidan alami) secara optimal akan menutrisi sel-sel tubuh agar bekerja maksimal.
-                </p>
-                <p>
-                  Berdasarkan hasil uji klinis empiris yang dikaji oleh para pakar gizi kami, pendekatan diet terbaik bukanlah dengan metode ekstrem yang membatasi asupan secara menyiksa, melainkan dengan menerapkan kebiasaan sadar pangan (mindful eating) dan berfokus pada keragaman makanan utuh berbasis pangan lokal (whole foods).
-                </p>
-                <p>
-                  Setiap metabolisme tubuh manusia memiliki profil genetik dan klinis yang sangat unik. Oleh karena itu, konsultasi tatap muka dengan dietitian atau praktisi gizi terakreditasi sebelum menerapkan modifikasi pola makan ekstrem adalah langkah bijak yang sangat direkomendasikan. Lini media resmi PT Rayliziie Media Digital berkomitmen penuh menghadirkan informasi sains terverifikasi klinis bagi Anda.
-                </p>
+              <div className="space-y-4 text-slate-700 leading-relaxed text-sm sm:text-base font-normal whitespace-pre-wrap">
+                {selectedArticle.content || selectedArticle.summary}
               </div>
 
-              {/* Editorial Certification Stamp */}
               <div className="bg-teal-50 border border-teal-100 rounded-2xl p-4 flex gap-3.5 items-start">
                 <div className="p-2 bg-teal-100 text-teal-700 rounded-xl shrink-0 mt-0.5">
                   🛡️
@@ -1487,10 +1313,8 @@ export default function App() {
                   </p>
                 </div>
               </div>
-
             </div>
 
-            {/* Modal Bottom bar */}
             <div className="p-6 bg-slate-50 border-t flex justify-between items-center gap-4 shrink-0">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 PT Rayliziie Media Digital • Verified Article
@@ -1502,12 +1326,10 @@ export default function App() {
                 Selesai Membaca
               </button>
             </div>
-
           </div>
         </div>
       )}
 
-      {/* ==================== FLOATING CART BUTTON ==================== */}
       {cartItems.length > 0 && (
         <button 
           onClick={() => {
@@ -1526,12 +1348,9 @@ export default function App() {
         </button>
       )}
 
-      {/* ==================== INTERACTIVE SHOPPING CART MODAL ==================== */}
       {showCartModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="relative bg-white w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[85vh] animate-scaleUp">
-            
-            {/* Header */}
+          <div className="relative bg-white w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[85vh]">
             <div className="p-6 bg-slate-50 border-b flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-xl">🛒</span>
@@ -1545,9 +1364,7 @@ export default function App() {
               </button>
             </div>
 
-            {/* Scrollable Content */}
             <div className="p-6 overflow-y-auto flex-grow space-y-6">
-              
               {checkoutStep === 'cart' && (
                 <div className="space-y-4">
                   {cartItems.map((item, idx) => (
@@ -1561,7 +1378,6 @@ export default function App() {
                         <p className="text-sm font-extrabold text-orange-500">Rp{item.product.price.toLocaleString('id-ID')}</p>
                       </div>
                       
-                      {/* Quantity Controls */}
                       <div className="flex items-center gap-2 shrink-0">
                         <button 
                           onClick={() => updateCartQuantity(item.product.id, -1)}
@@ -1580,7 +1396,6 @@ export default function App() {
                         <button 
                           onClick={() => removeFromCart(item.product.id)}
                           className="p-1.5 text-red-500 hover:bg-red-50 rounded-xl ml-2 transition-colors"
-                          title="Hapus"
                         >
                           🗑️
                         </button>
@@ -1588,7 +1403,6 @@ export default function App() {
                     </div>
                   ))}
 
-                  {/* Summary Box */}
                   <div className="bg-slate-50 p-4 rounded-2xl space-y-2 border border-slate-100">
                     <div className="flex justify-between text-sm font-semibold text-slate-600">
                       <span>Subtotal Produk</span>
@@ -1652,26 +1466,6 @@ export default function App() {
                     />
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Metode Pembayaran</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button 
-                        type="button"
-                        onClick={() => setPaymentMethod('Transfer Bank')}
-                        className={`p-3 border rounded-xl text-xs font-bold transition-all text-center ${paymentMethod === 'Transfer Bank' ? 'border-teal-600 bg-teal-50/50 text-teal-700' : 'border-slate-200 hover:bg-slate-50 text-slate-600'}`}
-                      >
-                        🏦 Transfer Bank
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => setPaymentMethod('E-Wallet (Gopay/OVO)')}
-                        className={`p-3 border rounded-xl text-xs font-bold transition-all text-center ${paymentMethod === 'E-Wallet (Gopay/OVO)' ? 'border-teal-600 bg-teal-50/50 text-teal-700' : 'border-slate-200 hover:bg-slate-50 text-slate-600'}`}
-                      >
-                        📱 E-Wallet / QRIS
-                      </button>
-                    </div>
-                  </div>
-
                   <div className="grid grid-cols-2 gap-3 pt-4">
                     <button 
                       type="button"
@@ -1697,16 +1491,9 @@ export default function App() {
                   </div>
                   <h4 className="text-2xl font-black text-[#1C3D5A]">Pesanan Berhasil Dibuat!</h4>
                   <p className="text-sm text-slate-500 max-w-sm mx-auto leading-relaxed">
-                    Terima kasih <strong>{shippingName}</strong>, pembayaran melalui <strong>{paymentMethod}</strong> sedang diproses aman oleh PT Rayliziie Media Digital.
+                    Terima kasih <strong>{shippingName}</strong>, pembayaran sedang diproses oleh PT Rayliziie Media Digital.
                   </p>
                   
-                  <div className="bg-slate-50 p-4 rounded-2xl text-left border text-xs text-slate-600 max-w-sm mx-auto space-y-1">
-                    <p><strong>Penerima:</strong> {shippingName}</p>
-                    <p><strong>Alamat:</strong> {shippingAddress}</p>
-                    <p><strong>Nomor Telp:</strong> {shippingPhone}</p>
-                    <p><strong>Total Transfer:</strong> Rp{calculateGrandTotal().total.toLocaleString('id-ID')}</p>
-                  </div>
-
                   <button 
                     onClick={clearCart}
                     className="bg-teal-600 hover:bg-teal-700 text-white font-extrabold py-3 px-8 rounded-full text-sm transition-all"
@@ -1715,14 +1502,11 @@ export default function App() {
                   </button>
                 </div>
               )}
-
             </div>
-
           </div>
         </div>
       )}
 
-      {/* ==================== DOCTOR CONSULTATION MODAL ==================== */}
       {showDoctorModal && activeConsultationProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
           <div className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col p-6 space-y-6">
@@ -1746,10 +1530,6 @@ export default function App() {
                   </p>
                 </div>
               </div>
-
-              <p className="text-sm text-[#4A5568] leading-relaxed">
-                Kami akan menghubungkan Anda dengan salah satu dokter mitra RayliziieShop yang saat ini aktif untuk memverifikasi kelayakan dosis penggunaan Anda secara gratis.
-              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 pt-2">
